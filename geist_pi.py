@@ -21,17 +21,23 @@ The conditions that turn on the heater can be set from a web application and are
 import urllib.request      # Python 3.4+
 #import urllib
 import json
+import app_settings
 
 import logging
 from logging.handlers import RotatingFileHandler
-# create up to 3 backup log files
-handler = RotatingFileHandler('geist.log', maxBytes=50000, backupCount=3)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s : %(message)s')
-handler.setFormatter(formatter)
-defLogger = logging.getLogger('')
-defLogger.addHandler(handler)
-defLogger.setLevel(logging.INFO)
-logger = logging.getLogger('__name__')
+
+defFormatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s : %(message)s')
+def setup_logger(name, log_file, formatter=defFormatter, level=logging.INFO):
+    """setup as many loggers as you want"""
+    handler = RotatingFileHandler(log_file, maxBytes=50000, backupCount=3)
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    return logger
+logger = setup_logger(__name__,'geist_prog.log')
+dataFormat = logging.Formatter('%(levelname)s : %(message)s')
+data_logger = setup_logger('data','geist_data.log', formatter=dataFormat)
 
 # Sample of JSON returned by /api/dev
 gdata = {'data': {'2E000000E7035012': {'alarm': {'severity': '', 'state': 'none'},
@@ -231,7 +237,7 @@ def get_geist_data(theURL, query):
     # req = urllib.request.Request(theURL + query)
     opener = urllib.request.urlopen(theURL + query)
     html = opener.read()
-    logger.info('json size = %d' %(len(html)))
+    logger.debug('json size = %d' %(len(html)))
     jdata = json.loads(html)
     return jdata
 
@@ -285,6 +291,45 @@ def html_out(geist_state, geist_data):
     print(out)  # sends HTML to HTTP stream
 
 
+def log_data(geist_state, geist_data):
+    # write html page
+    global measure_src, gpath
+    """
+    Using data parsed from the JSON, generate web page.
+    :param geist_stateL state data includes device timestamp
+    :param geist_data: JSON returned by Geist /api/dev
+    """
+    gpath = ('data', '*', 'entity', '0')
+    nodes = get_path_entity(geist_data, gpath)
+    instrument = {}
+    for node in nodes:
+        # Only process nodes that match specific device names
+        if 'name' in node and node['name'] in measure_src:
+            # Get all nodes within a node named 'measurement'
+            meas_nodes = get_path_entity(node, ('measurement',))
+            #print('name=%s' % (node['name']))
+            instrument[node['name']] = {}
+            measures = {}
+            for items in meas_nodes:
+                for key in items:
+                    #print('key=%s, type=%s, value=%s' % (key,items[key]['type'], items[key]['value']))
+                    measures[key] = [items[key]['type'], items[key]['value']]
+            instrument[node['name']] = measures
+
+    measure_time = geist_state['data']['localTime']
+    log_str = '%s' %(measure_time)
+    measures = {}
+    for instr in instrument:
+        #instr_str = '<H3>%s</H3>' %(instr)
+        log_str += ',I:%s' %(instr)
+        measures[instr] = {}
+        data = instrument[instr]
+        for key in data:
+            log_str += ',V:%s,%s' %(data[key][0],data[key][1])
+            measures[instr][data[key][0]] = data[key][1]
+    data_logger.info(log_str)
+    return measure_time,measures
+
 if __name__ == '__main__':
     logger.info('Geist fetch start')
     #gpath = ('data', '740491621DC31CC3', 'entity', '0')
@@ -293,19 +338,23 @@ if __name__ == '__main__':
     gpath = ('data', '*', 'entity', '0')
     # Look for dict nodes tha match these data sources:
     measure_src = ['Geist WD100', 'GTHD']
-    theURL = 'http://198.189.159.214:89'
+    theURL = app_settings.geist_addr
+    if app_settings.geist_port:
+        theURL += ':' + str(app_settings.geist_port)
 
     # query to get the local time
     query = '/api/sys/state?cmd=get'
     geist_state = get_geist_data(theURL, query)
     logger.debug('geist_state = %s' %(str(geist_state)))
-    logger.debug('Datetime: %s' %(geist_state['data']['localTime']))
+    logger.info('Datetime: %s' %(geist_state['data']['localTime']))
 
     # query to get all the data
     query = '/api/dev?cmd=get'
     geist_json = get_geist_data(theURL, query)
     # Find matching nodes: use gdata for local test, geist_json for live data
     nodes = get_path_entity(geist_json, gpath)
+    """
+    # Everything here is just for debugging
     #logger.debug(nodes)
     for node in nodes:
         # Only process nodes that match specific device names
@@ -316,5 +365,10 @@ if __name__ == '__main__':
             for items in meas_nodes:
                 for key in items:
                     logger.debug('key=%s, type=%s, value=%s' % (key,items[key]['type'], items[key]['value']))
+    """
 
-    html_out(geist_state,geist_json)
+    #html_out(geist_state,geist_json)
+    measure_time,measures = log_data(geist_state,geist_json)
+    Tdewpoint = measures[app_settings.dewpoint_temp[0]][app_settings.dewpoint_temp[1]]
+    Tmirror   = measures[app_settings.mirror_temp[0]][app_settings.mirror_temp[1]]
+    logger.info('ambient dewpoint=%s, mirror temp=%s' %(Tdewpoint,Tmirror))
