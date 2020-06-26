@@ -21,7 +21,7 @@ The conditions that turn on the heater can be set from a web application and are
 import urllib.request      # Python 3.4+
 #import urllib
 import json
-import app_settings
+import settings
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -236,7 +236,7 @@ def get_geist_data(theURL, query):
     # req = urllib.request.Request(theURL+query, headers={'User-Agent':user_agent})
     # req = urllib.request.Request(theURL + query)
     opener = urllib.request.urlopen(theURL + query)
-    html = opener.read()
+    html = opener.read().decode('utf-8')
     logger.debug('json size = %d' %(len(html)))
     jdata = json.loads(html)
     return jdata
@@ -338,9 +338,9 @@ if __name__ == '__main__':
     gpath = ('data', '*', 'entity', '0')
     # Look for dict nodes tha match these data sources:
     measure_src = ['Geist WD100', 'GTHD']
-    theURL = app_settings.geist_addr
-    if app_settings.geist_port:
-        theURL += ':' + str(app_settings.geist_port)
+    theURL = settings.geist_addr
+    if settings.geist_port:
+        theURL += ':' + str(settings.geist_port)
 
     # query to get the local time
     query = '/api/sys/state?cmd=get'
@@ -369,6 +369,10 @@ if __name__ == '__main__':
 
     #html_out(geist_state,geist_json)
     measure_time,measures = log_data(geist_state,geist_json)
-    Tdewpoint = measures[app_settings.dewpoint_temp[0]][app_settings.dewpoint_temp[1]]
-    Tmirror   = measures[app_settings.mirror_temp[0]][app_settings.mirror_temp[1]]
+    Tdewpoint = measures[settings.dewpoint_temp[0]][settings.dewpoint_temp[1]]
+    Tmirror   = measures[settings.mirror_temp[0]][settings.mirror_temp[1]]
     logger.info('ambient dewpoint=%s, mirror temp=%s' %(Tdewpoint,Tmirror))
+    if Tmirror - Tdewpoint < settings.dewpoint_alarm:
+        logger.warning('mirror temp close to dewpoint! mirror=%s, dewpoint=%s' %(Tmirror,Tdewpoint))
+        #TODO: send message
+        #TODO: turn on heater
