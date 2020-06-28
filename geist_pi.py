@@ -372,7 +372,7 @@ if __name__ == '__main__':
     Tdewpoint = measures[settings.dewpoint_temp[0]][settings.dewpoint_temp[1]]
     Tmirror   = measures[settings.mirror_temp[0]][settings.mirror_temp[1]]
     logger.info('ambient dewpoint=%s, mirror temp=%s' %(Tdewpoint,Tmirror))
-    if Tmirror - Tdewpoint < settings.dewpoint_alarm:
+    if float(Tmirror) - float(Tdewpoint) < settings.dewpoint_alarm:
         logger.warning('mirror temp close to dewpoint! mirror=%s, dewpoint=%s' %(Tmirror,Tdewpoint))
         #TODO: send message
         #TODO: turn on heater

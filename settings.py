@@ -1,6 +1,6 @@
 # These are settings for Geist logger on Raspberry Pi
 import os
-if os.isfile('pi_settings.py'):
+if os.path.isfile('pi_settings.py'):
     import pi_settings as gset
     dewpoint_alarm = gset.dewpoint_alarm
     dewpoint_temp = gset.dewpoint_temp
@@ -14,3 +14,4 @@ else:
 
     geist_addr = 'http://198.189.159.214'   # address of geist Watchdog
     geist_port = 89     # use None for default port value
+
