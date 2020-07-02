@@ -21,7 +21,22 @@ The conditions that turn on the heater can be set from a web application and are
 import urllib.request      # Python 3.4+
 #import urllib
 import json
-import settings
+import os
+if os.path.isfile('pi_settings.py'):
+    import pi_settings as gset
+    dewpoint_alarm = gset.dewpoint_alarm
+    dewpoint_temp = gset.dewpoint_temp
+    mirror_temp = gset.mirror_temp
+    geist_addr = gset.geist_addr
+    geist_port = gset.geist_port
+else:
+    dewpoint_alarm = 4.0    # diff between ambient dewpoint and mirror temperature in F
+    dewpoint_temp = ('Geist WD100','dewpoint')
+    mirror_temp = ('GTHD','temperature')
+
+    geist_addr = 'http://198.189.159.214'   # address of geist Watchdog
+    geist_port = 89     # use None for default port value
+
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -338,9 +353,9 @@ if __name__ == '__main__':
     gpath = ('data', '*', 'entity', '0')
     # Look for dict nodes tha match these data sources:
     measure_src = ['Geist WD100', 'GTHD']
-    theURL = settings.geist_addr
-    if settings.geist_port:
-        theURL += ':' + str(settings.geist_port)
+    theURL = geist_addr
+    if geist_port:
+        theURL += ':' + str(geist_port)
 
     # query to get the local time
     query = '/api/sys/state?cmd=get'
@@ -369,10 +384,10 @@ if __name__ == '__main__':
 
     #html_out(geist_state,geist_json)
     measure_time,measures = log_data(geist_state,geist_json)
-    Tdewpoint = measures[settings.dewpoint_temp[0]][settings.dewpoint_temp[1]]
-    Tmirror   = measures[settings.mirror_temp[0]][settings.mirror_temp[1]]
+    Tdewpoint = measures[dewpoint_temp[0]][dewpoint_temp[1]]
+    Tmirror   = measures[mirror_temp[0]][mirror_temp[1]]
     logger.info('ambient dewpoint=%s, mirror temp=%s' %(Tdewpoint,Tmirror))
-    if float(Tmirror) - float(Tdewpoint) < settings.dewpoint_alarm:
+    if float(Tmirror) - float(Tdewpoint) < dewpoint_alarm:
         logger.warning('mirror temp close to dewpoint! mirror=%s, dewpoint=%s' %(Tmirror,Tdewpoint))
         #TODO: send message
         #TODO: turn on heater
