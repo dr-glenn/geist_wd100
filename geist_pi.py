@@ -22,6 +22,11 @@ import urllib.request      # Python 3.4+
 #import urllib
 import json
 import os
+import smtplib,ssl
+from email.message import EmailMessage
+
+TEST_EMAIL = False
+
 if os.path.isfile('pi_settings.py'):
     import pi_settings as gset
     dewpoint_alarm = gset.dewpoint_alarm
@@ -29,14 +34,17 @@ if os.path.isfile('pi_settings.py'):
     mirror_temp = gset.mirror_temp
     geist_addr = gset.geist_addr
     geist_port = gset.geist_port
+    email_acct = None
 else:
     dewpoint_alarm = 4.0    # diff between ambient dewpoint and mirror temperature in F
     dewpoint_temp = ('Geist WD100','dewpoint')
     mirror_temp = ('GTHD','temperature')
-
     geist_addr = 'http://198.189.159.214'   # address of geist Watchdog
     geist_port = 89     # use None for default port value
-
+    email_acct = 'developer@glenn-nelson.us'
+    email_acct_pass = 'PxTMn}.=@ORu'
+    email_from = 'developer@glenn-nelson.us'
+    email_to = 'kitecamguy@gmail.com'
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -345,6 +353,18 @@ def log_data(geist_state, geist_data):
     data_logger.info(log_str)
     return measure_time,measures
 
+def send_email():
+    port = 465
+    context = ssl.create_default_context()
+    msg = EmailMessage()
+    msg.set_content('geist_pi says hello')
+    msg['Subject'] = 'Geist'
+    msg['From'] = email_from
+    msg['To'] = email_to
+    with smtplib.SMTP_SSL('mail.glenn-nelson.us', port, context) as server:
+        server.login(email_acct, email_acct_pass)
+        server.sendmail(email_from, email_to, msg.as_string())
+
 if __name__ == '__main__':
     logger.info('Geist fetch start')
     #gpath = ('data', '740491621DC31CC3', 'entity', '0')
@@ -387,7 +407,9 @@ if __name__ == '__main__':
     Tdewpoint = measures[dewpoint_temp[0]][dewpoint_temp[1]]
     Tmirror   = measures[mirror_temp[0]][mirror_temp[1]]
     logger.info('ambient dewpoint=%s, mirror temp=%s' %(Tdewpoint,Tmirror))
-    if float(Tmirror) - float(Tdewpoint) < dewpoint_alarm:
+    if TEST_EMAIL or float(Tmirror) - float(Tdewpoint) < dewpoint_alarm:
         logger.warning('mirror temp close to dewpoint! mirror=%s, dewpoint=%s' %(Tmirror,Tdewpoint))
         #TODO: send message
+        if email_acct:
+            send_email()
         #TODO: turn on heater
