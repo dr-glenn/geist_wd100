@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta http-equiv="refresh" content="300">
-<title>OOS Geist Watchdog</title>
+<title>OOS Mirror Sensors</title>
 <?php
 function get_status_color($tmirror, $dewpoint) {
     $tdiff = $tmirror - $dewpoint;
@@ -14,8 +14,8 @@ function get_status_color($tmirror, $dewpoint) {
 
 // open latest log file and retrieve last line by stepping backwards.
 // Note: not terribly efficient - what if log file is long?
-function read_last_log_all() {
-    $fp = fopen("/home/pi/Projects/geist_wd100/geist_data.log", "r");
+function read_last_log_all($sensor) {
+    $fp = fopen("/home/pi/Projects/geist_wd100/".$sensor."_data.log", "r");
     fseek($fp, -1, SEEK_END); // position on last char in file
     $pos = ftell($fp);
     $LastLine = "";
@@ -44,25 +44,29 @@ function read_last_log_all() {
 // shell script that runs python data logger will also exrtact
 // last line from log file and put it in it's own file.
 // Use this function instead of read_last_log_all, it's more efficient.
-function read_last_dat() {
+function read_last_dat($sensor) {
 /*
-    $fp = fopen("/home/pi/Projects/geist_wd100/geist_newest.dat", "r");
+    $fp = fopen("/home/pi/Projects/geist_wd100/".$sensor."_newest.dat", "r");
     $LastLine = fgets($fp, 4096);
     fclose($fp);
     if (strlen($LastLine) == 0) {
         // the file must be bad, use the slow method
-        $LastLine = read_last_log_all();
+        $LastLine = read_last_log_all($sensor);
     }
 */
-    $LastLine = read_last_log_all();
+    $LastLine = read_last_log_all($sensor);
     return $LastLine;
 }
 ?>
 
 <style>
-table, th, td {
+table {
+    border: 5px solid black;
+}
+th, td {
     border: 1px solid black;
     font-size: 24px;
+    padding: 10px;
 }
 body {
     background-color: grey;
@@ -89,10 +93,9 @@ body {
 </head>
 <body>
 <h1>OOS Environment</h1>
-<p>
 <?php
-//$LastLine = read_last_log_all();
-$LastLine = read_last_dat();
+//$LastLine = read_last_log_all('geist');
+$LastLine = read_last_dat('geist');
 
 sscanf($LastLine, "INFO : %[^ ] %[^,]%[^\n]",$date,$time,$leftover);
 sscanf($time, "%d:%d:%d", $hour, $minute, $second);
@@ -113,30 +116,41 @@ else if ($minute % 5 == 0) {
     printf("<style>body {background-color: grey;}</style>");
     //printf("<style>body {background-color: grey; animation-name: flash_red; animation-duration: 2s; animation-iteration-count: infinite;}</style>");
 }
-// insert javascript
+// insert javascript to store date-time values
 printf("<script>\$date=%s;\$time=%s;",$date,$time);
 printf("\$hour=%d;\$minute=%d</script>",$hour, $minute);
-printf("<br><table><tr><td colspan='2' style='text-align:center;'>Date=%s, Time=%s</td></tr>", $date, $time);
-//printf("<br><table><tr><td colspan=2 >Date=%s, Time=%s</td></tr>", $date, $time);
-printf("<tr><th>Instrument</th><th>Enviroment</th></tr>");
-// don't know how much string remains, but if small amount, then not valid
-$cnt = 0;
-while (strlen($leftover) > 8 && $cnt < 10) {
-    $more = "";
-    $ret = sscanf($leftover, ",I:%[^,],V:%[^,],%f,V:%[^,],%f,V:%[^,],%f%[^\n]",$instr1,$vtype1,$v1,$vtype2,$v2,$vtype3,$v3,$more);
-    //printf("<br>ret=%d",$ret);
-    //printf("<br>more=%s",$more);
-    $leftover = $more;
-    //printf("<br>leftover=%s",$leftover);
-    //printf("<br>instr=%s, %s=%.1f, %s=%.1f, %s=%.1f", $instr1,$vtype1,$v1,$vtype2,$v2,$vtype3,$v3);
-    printf("<tr><td>%s</td><td>%s=%.1f, %s=%.1f, %s=%.1f</td></tr>", $instr1,$vtype1,$v1,$vtype2,$v2,$vtype3,$v3);
-    $cnt++;
-    if ($ret == -1) break;
-}
-printf("</table>");
-    //printf("<style>body {background-color: grey; animation-name: flash_red; animation-duration: 2s; animation-iteration-count: infinite;}</style>");
 ?>
+<!-- display table of Geist WD100 values -->
+<p>
+<table>
+<tr><th>Time</th><th>Instrument</th><th>Values</th></tr>
+<?php
+function write_table($fname) {
+    $fp = fopen($fname, "r");
+    while($line = fgets($fp,2048)) {
+        $flds = explode(',', $line);
+        $datetime = $flds[0];
+        $instr = $flds[1];
+        printf("<tr><td>".$datetime."</td><td>".$instr."</td><td>");
+        $ifld = 2;
+        while ($ifld <= count($flds)-1) {
+            printf($flds[$ifld]);
+            if ($ifld < count($flds)-1) {
+                printf(", ");
+            }
+            $ifld++;
+        }
+        printf("</td></tr>");
+    }
+    fclose($fp);
+}
+
+write_table('/home/pi/Projects/geist_wd100/geist_newest.dat');
+write_table('/home/pi/Projects/geist_wd100/pi_newest.dat');
+?>
+</table>
 </p>
+<!-- big colored DIV to display status of mirror environment -->
 <div id="status" style="height:140px; font-size:48px; padding: 60px 0;" class="<?php echo $status_class;?>">STATUS: <?php echo $mirror_stat; ?></div>
 </body>
 </html>

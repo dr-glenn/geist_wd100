@@ -39,164 +39,10 @@ else:
 
 
 import logging
-from logging.handlers import RotatingFileHandler
-
-defFormatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s : %(message)s')
-def setup_logger(name, log_file, formatter=defFormatter, level=logging.INFO):
-    """setup as many loggers as you want"""
-    handler = RotatingFileHandler(log_file, maxBytes=50000, backupCount=3)
-    handler.setFormatter(formatter)
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.addHandler(handler)
-    return logger
-logger = setup_logger(__name__,'geist_prog.log')
+import my_logger
+logger = my_logger.setup_logger(__name__,'geist_prog.log')
 dataFormat = logging.Formatter('%(levelname)s : %(message)s')
-data_logger = setup_logger('data','geist_data.log', formatter=dataFormat)
-
-# Sample of JSON returned by /api/dev
-gdata = {'data': {'2E000000E7035012': {'alarm': {'severity': '', 'state': 'none'},
-                               'entity': {'0': {'alarm': {'severity': '',
-                                                          'state': 'none'},
-                                                'measurement': {'0': {'alarm': {'severity': '',
-                                                                                'state': 'none'},
-                                                                      'datalogEnabled': True,
-                                                                      'displayEnabled': False,
-                                                                      'state': 'normal',
-                                                                      'type': 'temperature',
-                                                                      'units': 'F',
-                                                                      'value': '70.72'},
-                                                                '1': {'alarm': {'severity': '',
-                                                                                'state': 'none'},
-                                                                      'datalogEnabled': True,
-                                                                      'displayEnabled': False,
-                                                                      'state': 'normal',
-                                                                      'type': 'humidity',
-                                                                      'value': '49'},
-                                                                '2': {'alarm': {'severity': 'alarm',
-                                                                                'state': 'tripped'},
-                                                                      'datalogEnabled': True,
-                                                                      'displayEnabled': False,
-                                                                      'state': 'normal',
-                                                                      'type': 'dewpoint',
-                                                                      'units': 'F',
-                                                                      'value': '50.64'}},
-                                                'name': 'GTHD'}},
-                               'label': 'GTHD',
-                               'layout': {'0': ['entity/0']},
-                               'name': 'GTHD',
-                               'order': 1,
-                               'snmpInstance': 1,
-                               'state': 'normal',
-                               'type': 'thd'},
-          '740491621DC31CC3': {'alarm': {'severity': '', 'state': 'none'},
-                               'analog': {'0': {'alarm': {'severity': '',
-                                                          'state': 'none'},
-                                                'datalogEnabled': True,
-                                                'displayEnabled': False,
-                                                'highLabel': '',
-                                                'label': 'Analog 1',
-                                                'lowLabel': '',
-                                                'max': 99.0,
-                                                'min': 0.0,
-                                                'mode': 'customVoltage',
-                                                'name': 'Analog 1',
-                                                'state': 'normal',
-                                                'type': '5V',
-                                                'units': '',
-                                                'value': '98.32'},
-                                          '1': {'alarm': {'severity': '',
-                                                          'state': 'none'},
-                                                'datalogEnabled': True,
-                                                'displayEnabled': False,
-                                                'highLabel': '',
-                                                'label': 'Analog 2',
-                                                'lowLabel': '',
-                                                'max': 99.0,
-                                                'min': 0.0,
-                                                'mode': 'customVoltage',
-                                                'name': 'Analog 2',
-                                                'state': 'normal',
-                                                'type': '5V',
-                                                'units': '',
-                                                'value': '98.61'},
-                                          '2': {'alarm': {'severity': '',
-                                                          'state': 'none'},
-                                                'datalogEnabled': True,
-                                                'displayEnabled': False,
-                                                'highLabel': '',
-                                                'label': 'Analog 3',
-                                                'lowLabel': '',
-                                                'max': 99.0,
-                                                'min': 0.0,
-                                                'mode': 'customVoltage',
-                                                'name': 'Analog 3',
-                                                'state': 'normal',
-                                                'type': '5V',
-                                                'units': '',
-                                                'value': '98.51'},
-                                          '3': {'alarm': {'severity': '',
-                                                          'state': 'none'},
-                                                'datalogEnabled': True,
-                                                'displayEnabled': False,
-                                                'highLabel': '',
-                                                'label': 'Analog 4',
-                                                'lowLabel': '',
-                                                'max': 99.0,
-                                                'min': 0.0,
-                                                'mode': 'customVoltage',
-                                                'name': 'Analog 4',
-                                                'state': 'normal',
-                                                'type': '5V',
-                                                'units': '',
-                                                'value': '98.51'}},
-                               'entity': {'0': {'alarm': {'severity': '',
-                                                          'state': 'none'},
-                                                'measurement': {'0': {'alarm': {'severity': '',
-                                                                                'state': 'none'},
-                                                                      'datalogEnabled': True,
-                                                                      'displayEnabled': False,
-                                                                      'state': 'normal',
-                                                                      'type': 'temperature',
-                                                                      'units': 'F',
-                                                                      'value': '68.02'},
-                                                                '1': {'alarm': {'severity': '',
-                                                                                'state': 'none'},
-                                                                      'datalogEnabled': True,
-                                                                      'displayEnabled': False,
-                                                                      'state': 'normal',
-                                                                      'type': 'humidity',
-                                                                      'value': '52'},
-                                                                '2': {'alarm': {'severity': 'alarm',
-                                                                                'state': 'tripped'},
-                                                                      'datalogEnabled': True,
-                                                                      'displayEnabled': False,
-                                                                      'state': 'normal',
-                                                                      'type': 'dewpoint',
-                                                                      'units': 'F',
-                                                                      'value': '49.83'}},
-                                                'name': 'Geist WD100'}},
-                               'label': 'Geist WD100',
-                               'layout': {'0': ['entity/0'],
-                                          '1': ['analog/0',
-                                                'analog/1',
-                                                'analog/2',
-                                                'analog/3'],
-                                          '2': ['relay/0']},
-                               'name': 'Geist WD100',
-                               'order': 0,
-                               'relay': {'0': {'label': 'Relay 1',
-                                               'mode': 'alarm',
-                                               'name': 'Relay 1',
-                                               'offLabel': 'De-energized',
-                                               'onLabel': 'Energized',
-                                               'state': 'on'}},
-                               'snmpInstance': 1,
-                               'state': 'normal',
-                               'temperatureOffset': -5.0,
-                               'type': 'BB-REL-THA4'}},
- 'retCode': 0,
- 'retMsg': ''}
+data_logger = my_logger.setup_logger('data','geist_data.log', formatter=dataFormat)
 
 def get_path_entity(dataDict,path):
     """
@@ -316,33 +162,47 @@ def log_data(geist_state, geist_data):
     """
     gpath = ('data', '*', 'entity', '0')
     nodes = get_path_entity(geist_data, gpath)
-    instrument = {}
+    instruments = {}
     for node in nodes:
         # Only process nodes that match specific device names
         if 'name' in node and node['name'] in measure_src:
             # Get all nodes within a node named 'measurement'
             meas_nodes = get_path_entity(node, ('measurement',))
             #print('name=%s' % (node['name']))
-            instrument[node['name']] = {}
+            instruments[node['name']] = {}
             measures = {}
             for items in meas_nodes:
                 for key in items:
                     #print('key=%s, type=%s, value=%s' % (key,items[key]['type'], items[key]['value']))
                     measures[key] = [items[key]['type'], items[key]['value']]
-            instrument[node['name']] = measures
+            instruments[node['name']] = measures
 
     measure_time = geist_state['data']['localTime']
     log_str = '%s' %(measure_time)
     measures = {}
-    for instr in instrument:
+    for instr in instruments:
         #instr_str = '<H3>%s</H3>' %(instr)
         log_str += ',I:%s' %(instr)
         measures[instr] = {}
-        data = instrument[instr]
+        data = instruments[instr]
         for key in data:
             log_str += ',V:%s,%s' %(data[key][0],data[key][1])
             measures[instr][data[key][0]] = data[key][1]
     data_logger.info(log_str)
+
+    # write sensors to newest file, one value per line
+    fp = open('geist_newest.dat', 'w')
+    for instr in instruments:
+        log_str = '%s' %(measure_time)
+        log_str += ',%s' %(instr)
+        fp.write(log_str)
+        data = instruments[instr]
+        for key in data:
+            dat_str =',%s=%s' %(data[key][0],data[key][1])
+            fp.write(dat_str)
+        fp.write('\n')
+    fp.close()
+
     return measure_time,measures
 
 if __name__ == '__main__':
@@ -382,12 +242,11 @@ if __name__ == '__main__':
                     logger.debug('key=%s, type=%s, value=%s' % (key,items[key]['type'], items[key]['value']))
     """
 
-    #html_out(geist_state,geist_json)
     measure_time,measures = log_data(geist_state,geist_json)
-    Tdewpoint = measures[dewpoint_temp[0]][dewpoint_temp[1]]
-    Tmirror   = measures[mirror_temp[0]][mirror_temp[1]]
-    logger.info('ambient dewpoint=%s, mirror temp=%s' %(Tdewpoint,Tmirror))
-    if float(Tmirror) - float(Tdewpoint) < dewpoint_alarm:
-        logger.warning('mirror temp close to dewpoint! mirror=%s, dewpoint=%s' %(Tmirror,Tdewpoint))
+    temp_dewpt = measures[dewpoint_temp[0]][dewpoint_temp[1]]
+    temp_mirror   = measures[mirror_temp[0]][mirror_temp[1]]
+    logger.info('ambient dewpoint=%s, mirror temp=%s' %(temp_dewpt,temp_mirror))
+    if float(temp_mirror) - float(temp_dewpt) < dewpoint_alarm:
+        logger.warning('mirror temp close to dewpoint! mirror=%s, dewpoint=%s' %(temp_mirror,temp_dewpt))
         #TODO: send message
         #TODO: turn on heater
