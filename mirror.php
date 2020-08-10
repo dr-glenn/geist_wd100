@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta http-equiv="refresh" content="300">
+<meta http-equiv="refresh" content="60">
 <title>OOS Mirror Sensors</title>
 <?php
 function get_status_color($tmirror, $dewpoint) {

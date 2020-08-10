@@ -42,7 +42,7 @@ else:
     geist_addr = 'http://198.189.159.214'   # address of geist Watchdog
     geist_port = 89     # use None for default port value
     email_acct = 'developer@glenn-nelson.us'
-    email_acct_pass = 'PxTMn}.=@ORu'
+    email_acct_pass = 'xxxxx'
     email_from = 'developer@glenn-nelson.us'
     email_to = 'kitecamguy@gmail.com'
 

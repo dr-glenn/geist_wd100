@@ -20,16 +20,26 @@ dataFormat = logging.Formatter('%(levelname)s : %(message)s')
 data_logger = my_logger.setup_logger('data','pi_data.log', formatter=dataFormat)
 
 AC_RELAY = 17
-READ_DS18B20 = False
+AC_ON = 19
+AC_OFF = 26
+READ_DS18B20 = True
 DHT_TYPE=22
 DHT_PIN=5
 
 # Use BCM pin mappings for Raspberry - this is most common
 GPIO.setmode(GPIO.BCM)
 
-def relay_setup(relay=AC_RELAY):
+def ac_relay_pb_callback(channel):
+    print("pushbutton {}".format(channel))
+
+def relay_setup(relay=AC_RELAY, ron=AC_ON, roff=AC_OFF):
     print("setup {}".format(relay))
     GPIO.setup(relay, GPIO.OUT)
+    # TODO: I should be able to setup with internal pullups
+    GPIO.setup(ron, GPIO.IN)
+    GPIO.setup(roff, GPIO.IN)
+    GPIO.add_event_detect(ron, GPIO.FALLING, callback=ac_relay_pb_callback, bouncetime=300)
+    GPIO.add_event_detect(roff, GPIO.FALLING, callback=ac_relay_pb_callback, bouncetime=300)
 
 def relay_test(relay=AC_RELAY):
     print("ON {}".format(relay))
@@ -62,9 +72,11 @@ def ds18b20_start():
     os.system('modprobe w1-therm')
  
     base_dir = '/sys/bus/w1/devices/'
-    device_folder = glob.glob(base_dir + '28*')[0]
+    devices = glob.glob(base_dir + '28*')
+    device_folder = devices[0]
     device_file = device_folder + '/w1_slave'
-    return device_file
+    #return device_file
+    return devices
  
 def read_temp_raw(dev_file):
     '''
@@ -114,6 +126,12 @@ if __name__ == "__main__":
     temp,humid = read_dht()
     print("temp={:.1f}, humidity={:.1f}".format(temp,humid))
     instruments['dht22'] = {'temperature':'{:.1f}'.format(temp), 'humidity':'{:.1f}'.format(humid)}
+    if READ_DS18B20:
+        idev = 0
+        for dev in dev_ds18b20:
+            ds_temp_c,ds_temp_f = read_temp(dev+'/w1_slave')
+            instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_f)}
+            idev += 1
 
     # write sensors to log file
     for instr in instruments:
