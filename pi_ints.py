@@ -3,6 +3,11 @@
 
 '''
 Handle pushbuttons and other interrupt devices connected to Pi.
+If relay is manually turned on by pushbutton, then it starts a timer (30 minutes?).
+When timer expires, then relay will turn off.
+If sensors require the relay on, they will turn it on again within 5 minutes.
+
+When program starts, the red LED on the Pi will flash and the relay will be turned on for 2 seconds.
 '''
 
 import os
@@ -16,23 +21,41 @@ logger = my_logger.setup_logger(__name__,'pi_ints.log')
 #dataFormat = logging.Formatter('%(levelname)s : %(message)s')
 #data_logger = my_logger.setup_logger('data','pi_data.log', formatter=dataFormat)
 
+from pi_hw import AC_RELAY,AC_PB_ON,AC_PB_OFF,RED_LED,YELLOW_LED,GREEN_LED,DHT_TYPE,DHT_PIN,READ_DS18B20
+'''
 AC_RELAY = 17
-AC_ON = 19
-AC_OFF = 26
+AC_PB_ON = 19
+AC_PB_OFF = 26
+RED_LED = 25
+YELLOW_LED = 24
+GREEN_LED = 23
+'''
+AUTO_ON_TIME = 30   # minutes: turn off after this time
 
 # Use BCM pin mappings for Raspberry - this is most common
 GPIO.setmode(GPIO.BCM)
 
 def ac_relay_pb_callback(channel):
-    print("pushbutton {}".format(channel))
-    if channel==26:
-        GPIO.output(23, GPIO.HIGH)
+    '''
+    button pushes by interrupt handler.
+    :param channel: GPIO pin of the pushbutton
+    '''
+    global on_timer, on_manual
+    #print("pushbutton {}".format(channel))
+    logger.info("heater relay manual: %s" %("ON" if channel==AC_PB_ON else "OFF"))
+    if channel==AC_PB_ON:
+        GPIO.output(AC_RELAY, GPIO.HIGH)
+        GPIO.output(RED_LED, GPIO.HIGH)
+        on_timer = AUTO_ON_TIME
+        on_manual = True
     else:
-        GPIO.output(23, GPIO.LOW)
+        GPIO.output(AC_RELAY, GPIO.LOW)
+        GPIO.output(RED_LED, GPIO.LOW)
+        on_timer = 0
+        on_manual = False
 
-
-def relay_setup(relay=AC_RELAY, ron=AC_ON, roff=AC_OFF):
-    print("setup {}".format(relay))
+def relay_setup(relay=AC_RELAY, ron=AC_PB_ON, roff=AC_PB_OFF):
+    #print("setup {}".format(relay))
     GPIO.setup(relay, GPIO.OUT)
     # TODO: I should be able to setup with internal pullups
     GPIO.setup(ron, GPIO.IN)
@@ -43,16 +66,16 @@ def relay_setup(relay=AC_RELAY, ron=AC_ON, roff=AC_OFF):
 def relay_test(relay=AC_RELAY):
     print("ON {}".format(relay))
     GPIO.output(relay, GPIO.HIGH)
-    time.sleep(4)
+    time.sleep(2)
     print("OFF {}".format(relay))
     GPIO.output(relay, GPIO.LOW)
 
-def led_setup(leds=(23,24,25)):
+def led_setup(leds=(GREEN_LED,YELLOW_LED,RED_LED)):
     for led in leds:
         print("setup {}".format(led))
         GPIO.setup(led, GPIO.OUT)
 
-def led_test(leds=(23,24,25)):
+def led_test(leds=(GREEN_LED,YELLOW_LED,RED_LED)):
     for led in leds:
         print("ON {}".format(led))
         GPIO.output(led, GPIO.HIGH)
@@ -61,6 +84,9 @@ def led_test(leds=(23,24,25)):
         time.sleep(1)
 
 if __name__ == "__main__":
+    global on_timer, on_manual
+    on_timer = 0
+    on_manual = False
     led_setup()
     led_test()
     relay_setup()
@@ -69,6 +95,14 @@ if __name__ == "__main__":
     measure_time = time.strftime('%Y-%m-%d %H:%M:%S')
     log_str = '%s' %(measure_time)
     while True:
-        time.sleep(5)
-        #GPIO.output(23, GPIO.LOW)
+        # We have to run infinite loop just to keep this program running,
+        # but nothing is actually done here, it's all handled by interrupts.
+        if on_manual:
+            if on_timer > 0:
+                on_timer -= 1
+            else:
+                on_manual = False
+                GPIO.output(AC_RELAY, GPIO.LOW)
+                GPIO.output(RED_LED, GPIO.LOW)
+        time.sleep(60)
 
