@@ -13,7 +13,6 @@ When program starts, the red LED on the Pi will flash and the relay will be turn
 import os
 import time
 import RPi.GPIO as GPIO
-import time
 
 import logging
 import my_logger
@@ -21,19 +20,26 @@ logger = my_logger.setup_logger(__name__,'pi_ints.log')
 #dataFormat = logging.Formatter('%(levelname)s : %(message)s')
 #data_logger = my_logger.setup_logger('data','pi_data.log', formatter=dataFormat)
 
-from pi_hw import AC_RELAY,AC_PB_ON,AC_PB_OFF,RED_LED,YELLOW_LED,GREEN_LED,DHT_TYPE,DHT_PIN,READ_DS18B20
-'''
+# I cannot run this program as a cron job if attempting to import pi_hw.
+# The problem is that pi_hw import Adafruit_DHT and for some reason the cron job can't fetch it.
+# So Ihave to replicate the hardware pin assignments here.
+#from pi_hw import AC_RELAY,AC_PB_ON,AC_PB_OFF,RED_LED,YELLOW_LED,GREEN_LED
+RELAY_EN = True
 AC_RELAY = 17
 AC_PB_ON = 19
 AC_PB_OFF = 26
 RED_LED = 25
 YELLOW_LED = 24
 GREEN_LED = 23
-'''
 AUTO_ON_TIME = 30   # minutes: turn off after this time
 
 # Use BCM pin mappings for Raspberry - this is most common
 GPIO.setmode(GPIO.BCM)
+
+def touch(path):
+    ''' mimic the UNIX touch command'''
+    with open(path, 'a'):
+        os.utime(path, None)
 
 def ac_relay_pb_callback(channel):
     '''
@@ -48,6 +54,7 @@ def ac_relay_pb_callback(channel):
         GPIO.output(RED_LED, GPIO.HIGH)
         on_timer = AUTO_ON_TIME
         on_manual = True
+        touch('/home/pi/Projects/geist_wd100/relay_on.txt')   # use file timestamp for the relay ON timer
     else:
         GPIO.output(AC_RELAY, GPIO.LOW)
         GPIO.output(RED_LED, GPIO.LOW)
@@ -55,7 +62,6 @@ def ac_relay_pb_callback(channel):
         on_manual = False
 
 def relay_setup(relay=AC_RELAY, ron=AC_PB_ON, roff=AC_PB_OFF):
-    #print("setup {}".format(relay))
     GPIO.setup(relay, GPIO.OUT)
     # TODO: I should be able to setup with internal pullups
     GPIO.setup(ron, GPIO.IN)
@@ -85,6 +91,7 @@ def led_test(leds=(GREEN_LED,YELLOW_LED,RED_LED)):
 
 if __name__ == "__main__":
     global on_timer, on_manual
+    logger.info('START pi_ints')
     on_timer = 0
     on_manual = False
     led_setup()
@@ -98,11 +105,20 @@ if __name__ == "__main__":
         # We have to run infinite loop just to keep this program running,
         # but nothing is actually done here, it's all handled by interrupts.
         if on_manual:
+            # check timeout to see if turning off is allowed
+            st = os.stat('/home/pi/Projects/geist_wd100/relay_on.txt')
+            now = time.time()
+            if (now - st.st_mtime) / 60 > AUTO_ON_TIME:
+                GPIO.output(AC_RELAY, GPIO.LOW)
+                GPIO.output(RED_LED, GPIO.LOW)
+            '''
+            # old code: was using a timer, but now using timestamp of a file
             if on_timer > 0:
                 on_timer -= 1
             else:
                 on_manual = False
                 GPIO.output(AC_RELAY, GPIO.LOW)
                 GPIO.output(RED_LED, GPIO.LOW)
+            '''
         time.sleep(60)
 

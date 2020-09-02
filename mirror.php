@@ -32,12 +32,8 @@ function read_last_log_all($sensor) {
         $LastLine = $C.$LastLine;
         $pos--;
         fseek($fp, $pos);
-        //printf("1: ftell=%u, C=%s<br>",ftell($fp),$C);
     }
     fclose($fp);
-    //printf("pos end=%u<br>",$pos);
-    //printf("str len=%u<br>",strlen($LastLine));
-    //printf("Most recent: %s",$LastLine);
     return $LastLine;
 }
 
@@ -143,7 +139,7 @@ else if (strcmp($mirror_stat,"green") == 0) {
 else {
     $status_class = 'white_steady';
 }
-printf("<p>mirror_stat = ". $mirror_stat . ", status_class=".$status_class."</p>");
+//printf("<p>mirror_stat = ". $mirror_stat . ", status_class=".$status_class."</p>");
 
 // demonstrate changing background color depending on the minute value
 /*
