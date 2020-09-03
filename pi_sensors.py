@@ -97,7 +97,9 @@ def calc_status():
         else:
             status = 'green'
     else:
-        mirror_t = hw.get_value(hw.MIRROR_T)
+        #mirror_t = hw.get_value(hw.MIRROR_T)
+        mirror_t = hw.get_value(hw.PI_DHT22_T)
+        mirror_hum = hw.get_value(hw.PI_DHT22_HUM)
         amb_hum  = hw.get_value(hw.AMBIENT_HUM)
         amb_dew  = hw.get_value(hw.AMBIENT_DEW)
         if mirror_t - amb_dew < 2.0 * 1.8 or amb_hum > 80:
