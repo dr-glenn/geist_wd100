@@ -89,7 +89,7 @@ def calc_status():
     if hw.FAKE_STATUS:
         dt_now = dt.datetime.now()
         # change status every 5 minutes for demonsration
-        dt_min = (dt_now.minute / 5) % 3
+        dt_min = (dt_now.minute / 5) % 3    # dt_min gets values of 0, 1 or 2
         if dt_min == 0:
             status = 'red'
         elif dt_min == 1:
@@ -97,12 +97,17 @@ def calc_status():
         else:
             status = 'green'
     else:
-        mirror_t = hw.get_value(hw.MIRROR_T)
-        amb_hum  = hw.get_value(hw.AMBIENT_HUM)
-        amb_dew  = hw.get_value(hw.AMBIENT_DEW)
-        if mirror_t - amb_dew < 2.0 * 1.8 or amb_hum > 80:
+        mirror_cell_t   = hw.get_value(hw.PI_DHT22_T)
+        mirror_cell_hum = hw.get_value(hw.PI_DHT22_HUM)
+        mirror_t        = hw.get_value(hw.PI_DS18_0_T)  # does not have hum sensor
+        # TODO: averaging is not best, esp. what if GTHD sensor is offline!
+        amb_t           = (hw.get_value(hw.AMBIENT_T) + hw.get_value(hw.AMBIENT_T_1)) / 2.0
+        amb_hum         = (hw.get_value(hw.AMBIENT_HUM) + hw.get_value(hw.AMBIENT_HUM_1)) / 2.0
+        amb_dew         = (hw.get_value(hw.AMBIENT_DEW) + hw.get_value(hw.AMBIENT_DEW_1)) / 2.0
+        # sensors return F, not C. Algorithm was specified in C, so multiply by 1.8
+        if (mirror_t - amb_dew) < (2.0 * 1.8) or amb_hum > 80:
             status = 'red'
-        elif mirror_t - amb_dew < 5.0 * 1.8 or amb_dew > 60:
+        elif (mirror_t - amb_dew) < (5.0 * 1.8) or amb_hum > 65:
             status = 'yellow'
         else:
             status = 'green'
