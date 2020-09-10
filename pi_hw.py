@@ -133,7 +133,7 @@ def read_ds18b20(dev_file):
     if equals_pos != -1:
         temp_string = lines[1][equals_pos+2:]
         temp_c = float(temp_string) / 1000.0
-        temp_f = temp_c * 9.0 / 5.0 + 32.0
+        temp_f = temp_c * 1.8 + 32.0
         return temp_c, temp_f
     else:
         return (-100.0,-100.0)
@@ -150,14 +150,15 @@ def read_dht(dht_type=DHT_TYPE, dht_gpio=DHT_PIN):
 AMBIENT_T       = dict(file='geist', instrument='Geist WD100', value='temperature', name='ambient')
 AMBIENT_DEW     = dict(file='geist', instrument='Geist WD100', value='dewpoint', name='ambient')
 AMBIENT_HUM     = dict(file='geist', instrument='Geist WD100', value='humidity', name='ambient')
-AMBIENT_T_1     = dict(file='geist', instrument='GTHD', value='temperature', name='mirror')
-AMBIENT_DEW_1   = dict(file='geist', instrument='GTHD', value='dewpoint', name='mirror')
-AMBIENT_HUM_1   = dict(file='geist', instrument='GTHD', value='humidity', name='mirror')
-MIRROR_T        = dict(file='geist', instrument='GTHD', value='temperature', name='mirror')
-MIRROR_HUM      = dict(file='geist', instrument='GTHD', value='humidity', name='mirror')
-PI_DHT22_T      = dict(file='pi', instrument='dht22', value='temperature', name='pi')
-PI_DHT22_HUM    = dict(file='pi', instrument='dht22', value='humidity', name='pi')
-PI_DS18_0_T     = dict(file='pi', instrument='ds18b20-0', value='temperature', name='pi')
+AMBIENT_T_1     = dict(file='geist', instrument='GTHD', value='temperature', name='ambient_1')
+AMBIENT_DEW_1   = dict(file='geist', instrument='GTHD', value='dewpoint', name='ambient_1')
+AMBIENT_HUM_1   = dict(file='geist', instrument='GTHD', value='humidity', name='ambient_1')
+MIRROR_T        = dict(file='pi', instrument='ds18b20-0', value='temperature', name='mirror')
+MIRROR_CELL_HUM = dict(file='pi', instrument='dht22', value='humidity', name='mirror_cell')
+MIRROR_CELL_T   = dict(file='pi', instrument='dht22', value='temperature', name='mirror_cell')
+#PI_DHT22_T      = dict(file='pi', instrument='dht22', value='temperature', name='pi')
+#PI_DHT22_HUM    = dict(file='pi', instrument='dht22', value='humidity', name='pi')
+#PI_DS18_0_T     = dict(file='pi', instrument='ds18b20-0', value='temperature', name='pi')
 
 # ===== do not modify below this line =====
 # Newest sensor readings look like this:
@@ -174,7 +175,7 @@ Next 2 lines from file pi_newest.dat:
 def get_value(val):
     '''
     Search files '*_newest.dat' for a sensor value.
-    :param val: one of the items above, such as AMBIENT_T or MIRROR_DEW.
+    :param val: one of the items above, such as AMBIENT_T or MIRROR_CELL_DEW.
     :return: latest sensor value or None if not found.
     '''
     fp = open(val['file']+'_newest.dat', 'r')
@@ -200,6 +201,6 @@ def display_status():
 # ===== If imported to other programs, this code will not run
 
 if __name__ == '__main__':
-    for v in (AMBIENT_T,AMBIENT_DEW,AMBIENT_HUM,MIRROR_T,MIRROR_DEW,MIRROR_HUM,PI_DHT22_T,PI_DHT22_HUM,PI_DS18_0_T):
+    for v in (AMBIENT_T,AMBIENT_DEW,AMBIENT_HUM,AMBIENT_T_1,AMBIENT_DEW_1,AMBIENT_HUM_1,MIRROR_T,MIRROR_CELL_T,MIRROR_CELL_HUM):
         val = get_value(v)
         print('name={}: instr={}, measure={}, value={}'.format(v['name'],v['instrument'],v['value'],val))

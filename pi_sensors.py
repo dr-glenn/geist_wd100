@@ -9,6 +9,7 @@ Also may read DS18B20 temp sensor.
 import os
 import glob
 import time
+import math
 import datetime as dt
 import Adafruit_DHT # DHT device interface
 import RPi.GPIO as GPIO
@@ -24,6 +25,12 @@ import pi_hw as hw
 
 # Use BCM pin mappings for Raspberry - this is most common
 GPIO.setmode(GPIO.BCM)
+
+def f_to_c(tempF):
+    return (tempF - 32.0) / 1.8
+    
+def c_to_f(tempC):
+    return tempC * 1.8 + 32.0
 
 def ac_relay_pb_callback(channel):
     print("pushbutton {}".format(channel))
@@ -81,6 +88,16 @@ def read_dht(dht_type=hw.DHT_TYPE, dht_gpio=hw.DHT_PIN):
     #22 is the sensor type, 5 is the GPIO pin number that DATA wire is connected to
     humid, temp = Adafruit_DHT.read_retry(dht_type, dht_gpio)
     return 1.8*temp+32.0,humid
+    
+def calc_dewpoint(humidity, temperatureC):
+    '''
+    This equation is from Geist. Strange that altitude is not in it.
+    :param humidity: in percent
+    :param temperatureC:
+    '''
+    H = (math.log(humidity / 100.0) + ((17.27 * temperatureC) / (237.3 + temperatureC))) / 17.27;
+    dewptC = (237.3 * H) / (1.0 - H)
+    return dewptC
 
 def calc_status():
     '''
@@ -97,23 +114,29 @@ def calc_status():
         else:
             status = 'green'
     else:
-        mirror_cell_t   = hw.get_value(hw.PI_DHT22_T)
-        mirror_cell_hum = hw.get_value(hw.PI_DHT22_HUM)
-        mirror_t        = hw.get_value(hw.PI_DS18_0_T)  # does not have hum sensor
+        # TODO: should not use get_value for Pi sensors, because those values will be 5 minutes old.
+        mirror_cell_t   = hw.get_value(hw.MIRROR_CELL_T)
+        mirror_cell_hum = hw.get_value(hw.MIRROR_CELL_HUM)
+        mirror_t        = hw.get_value(hw.MIRROR_T)  # does not have hum sensor
         # TODO: averaging is not best, esp. what if GTHD sensor is offline!
         amb_t           = (hw.get_value(hw.AMBIENT_T) + hw.get_value(hw.AMBIENT_T_1)) / 2.0
         amb_hum         = (hw.get_value(hw.AMBIENT_HUM) + hw.get_value(hw.AMBIENT_HUM_1)) / 2.0
         amb_dew         = (hw.get_value(hw.AMBIENT_DEW) + hw.get_value(hw.AMBIENT_DEW_1)) / 2.0
+        mirror_cell_dew = c_to_f(calc_dewpoint(mirror_cell_hum, f_to_c(mirror_cell_t)))
         # sensors return F, not C. Algorithm was specified in C, so multiply by 1.8
-        if (mirror_t - amb_dew) < (2.0 * 1.8) or amb_hum > 80:
+        if (mirror_t - mirror_cell_dew) < (2.0 * 1.8) or amb_hum >= 80:
             status = 'red'
-        elif (mirror_t - amb_dew) < (5.0 * 1.8) or amb_hum > 65:
+        elif (mirror_t - mirror_cell_dew) < (5.0 * 1.8) or amb_hum >= 65:
             status = 'yellow'
         else:
             status = 'green'
     return status
 
 if __name__ == "__main__":
+    '''
+    Read Pi sensors and write to log files.
+    Calculate status, set LED color and operate heater relay.
+    '''
     hw.led_setup()
     #led_test()
     hw.relay_setup()
@@ -125,9 +148,20 @@ if __name__ == "__main__":
 
     # DHT22 temp/humidity - only one
     temp,humid = hw.read_dht()
-    print("temp={:.1f}, humidity={:.1f}".format(temp,humid))
+    #print("temp={:.1f}, humidity={:.1f}".format(temp,humid))
     instruments['dht22'] = {'temperature':'{:.1f}'.format(temp), 'humidity':'{:.1f}'.format(humid)}
 
+    # DS18B20 temp sensors - can have multiple
+    if hw.READ_DS18B20:
+        idev = 0
+        for dev in dev_ds18b20:
+            ds_temp_c,ds_temp_f = hw.read_ds18b20(dev+'/w1_slave')
+            instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_f)}
+            idev += 1
+
+    mirror_cell_dew = c_to_f(calc_dewpoint(humid,f_to_c(temp)))
+    instruments['dew_calc'] = {'mirror_dewpt':'{:.1f}'.format(mirror_cell_dew)}
+    
     # environment calc_status returns one of: red/yellow/green
     stat = calc_status()
     # set the heater relay and the status LED
@@ -143,14 +177,6 @@ if __name__ == "__main__":
     # read mirror heater relay (even though we just set it above here)
     rstate = 'ON' if GPIO.input(hw.AC_RELAY) else 'Off'
     instruments['relay'] = {'state': '%s' %(rstate)}
-
-    # DS18B20 temp sensors - can have multiple
-    if hw.READ_DS18B20:
-        idev = 0
-        for dev in dev_ds18b20:
-            ds_temp_c,ds_temp_f = hw.read_ds18b20(dev+'/w1_slave')
-            instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_f)}
-            idev += 1
 
     # write sensors to log file
     for instr in instruments:
