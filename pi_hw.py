@@ -6,7 +6,7 @@ import glob
 import time
 import Adafruit_DHT # DHT device interface
 
-FAKE_STATUS = True
+FAKE_STATUS = False
 RELAY_EN = True
 AC_RELAY = 17
 AC_PB_ON = 19
@@ -172,7 +172,7 @@ Next 2 lines from file pi_newest.dat:
 2020-09-01 11:10:02,ds18b20-0,temperature=68.3
 '''
 
-def get_value(val):
+def get_value(val, type='float'):
     '''
     Search files '*_newest.dat' for a sensor value.
     :param val: one of the items above, such as AMBIENT_T or MIRROR_CELL_DEW.
@@ -187,6 +187,10 @@ def get_value(val):
                 if val['value'] in fld:
                     value = (fld.split('=')[1]).rstrip()
                     break
+    if type=='float':
+        value = float(value)
+    elif type=='int':
+        value = int(value)
     return value
 
 def display_status():
