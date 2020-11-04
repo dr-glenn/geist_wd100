@@ -19,7 +19,7 @@ DHT_PIN=5
 READ_DS18B20 = True
 AUTO_ON_TIME = 30   # minutes: turn off after this time
 
-led_map = dict(red=RED_LED, yellow=YELLOW_LED, green=GREEN_LED)
+led_map = dict(red=RED_LED, yellow=YELLOW_LED, green=GREEN_LED, grey=YELLOW_LED)
 
 def relay_setup(relay=AC_RELAY, ron=AC_PB_ON, roff=AC_PB_OFF):
     print("setup {}".format(relay))
@@ -144,7 +144,10 @@ if READ_DS18B20:
 def read_dht(dht_type=DHT_TYPE, dht_gpio=DHT_PIN):
     #22 is the sensor type, 5 is the GPIO pin number that DATA wire is connected to
     humid, temp = Adafruit_DHT.read_retry(dht_type, dht_gpio)
-    return 1.8*temp+32.0,humid
+    if temp:
+        return 1.8*temp+32.0,humid
+    else:
+        return None, None
 
 # How to fetch the readings that we need for heater decision
 AMBIENT_T       = dict(file='geist', instrument='Geist WD100', value='temperature', name='ambient')
@@ -187,10 +190,13 @@ def get_value(val, type='float'):
                 if val['value'] in fld:
                     value = (fld.split('=')[1]).rstrip()
                     break
-    if type=='float':
-        value = float(value)
-    elif type=='int':
-        value = int(value)
+    if value=='n/a':
+        value = None
+    else:
+        if type=='float':
+            value = float(value)
+        elif type=='int':
+            value = int(value)
     return value
 
 def display_status():

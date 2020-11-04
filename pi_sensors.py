@@ -122,14 +122,21 @@ def calc_status():
         amb_t           = (hw.get_value(hw.AMBIENT_T) + hw.get_value(hw.AMBIENT_T_1)) / 2.0
         amb_hum         = (hw.get_value(hw.AMBIENT_HUM) + hw.get_value(hw.AMBIENT_HUM_1)) / 2.0
         amb_dew         = (hw.get_value(hw.AMBIENT_DEW) + hw.get_value(hw.AMBIENT_DEW_1)) / 2.0
-        mirror_cell_dew = c_to_f(calc_dewpoint(mirror_cell_hum, f_to_c(mirror_cell_t)))
-        # sensors return F, not C. Algorithm was specified in C, so multiply by 1.8
-        if (mirror_t - mirror_cell_dew) < (2.0 * 1.8) or amb_hum >= 80:
-            status = 'red'
-        elif (mirror_t - mirror_cell_dew) < (5.0 * 1.8) or amb_hum >= 65:
-            status = 'yellow'
+        if mirror_cell_hum and mirror_cell_t:
+            mirror_cell_dew = c_to_f(calc_dewpoint(mirror_cell_hum, f_to_c(mirror_cell_t)))
         else:
-            status = 'green'
+            mirror_cell_dew = None
+        # sensors return F, not C. Algorithm was specified in C, so multiply by 1.8
+        if mirror_cell_dew and mirror_t and amb_hum:
+            if (mirror_t - mirror_cell_dew) < (2.0 * 1.8) or amb_hum >= 80:
+                status = 'red'
+            elif (mirror_t - mirror_cell_dew) < (5.0 * 1.8) or amb_hum >= 65:
+                status = 'yellow'
+            else:
+                status = 'green'
+        else:
+            # TODO: should be another color to signify missing sensors.
+            status = 'grey'
     return status
 
 if __name__ == "__main__":
@@ -148,8 +155,10 @@ if __name__ == "__main__":
 
     # DHT22 temp/humidity - only one
     temp,humid = hw.read_dht()
-    #print("temp={:.1f}, humidity={:.1f}".format(temp,humid))
-    instruments['dht22'] = {'temperature':'{:.1f}'.format(temp), 'humidity':'{:.1f}'.format(humid)}
+    if temp and humid:
+        instruments['dht22'] = {'temperature':'{:.1f}'.format(temp), 'humidity':'{:.1f}'.format(humid)}
+    else:
+        instruments['dht22'] = {'temperature':'n/a', 'humidity':'n/a'}
 
     # DS18B20 temp sensors - can have multiple
     if hw.READ_DS18B20:
@@ -159,8 +168,11 @@ if __name__ == "__main__":
             instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_f)}
             idev += 1
 
-    mirror_cell_dew = c_to_f(calc_dewpoint(humid,f_to_c(temp)))
-    instruments['dew_calc'] = {'mirror_dewpt':'{:.1f}'.format(mirror_cell_dew)}
+    if humid and temp:
+        mirror_cell_dew = c_to_f(calc_dewpoint(humid,f_to_c(temp)))
+        instruments['dew_calc'] = {'mirror_dewpt':'{:.1f}'.format(mirror_cell_dew)}
+    else:
+        instruments['dew_calc'] = {'mirror_dewpt':'n/a'}
     
     # environment calc_status returns one of: red/yellow/green
     stat = calc_status()

@@ -78,6 +78,9 @@ body {
 .yellow_steady {
     background-color: yellow;
 }
+.grey_steady {
+    background-color: grey;
+}
 .white_steady {
     background-color: white;
 }
@@ -137,7 +140,7 @@ else if (strcmp($mirror_stat,"green") == 0) {
     $status_class = "green_steady";
 }
 else {
-    $status_class = 'white_steady';
+    $status_class = 'grey_steady';
 }
 //printf("<p>mirror_stat = ". $mirror_stat . ", status_class=".$status_class."</p>");
 
