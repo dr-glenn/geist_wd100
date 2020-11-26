@@ -15,11 +15,16 @@ RED_LED = 25
 YELLOW_LED = 24
 GREEN_LED = 23
 DHT_TYPE=22
-DHT_PIN=5
+#DHT_PIN=5  # this is the typical default
+DHT_PIN=12
+DHT_RETRY_CNT=5
 READ_DS18B20 = True
 AUTO_ON_TIME = 30   # minutes: turn off after this time
 
 led_map = dict(red=RED_LED, yellow=YELLOW_LED, green=GREEN_LED, grey=YELLOW_LED)
+
+def dht_pin_setup(pin=DHT_PIN):
+    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 def relay_setup(relay=AC_RELAY, ron=AC_PB_ON, roff=AC_PB_OFF):
     print("setup {}".format(relay))
@@ -106,8 +111,9 @@ def ds18b20_start():
     base_dir = '/sys/bus/w1/devices/'
     devices = glob.glob(base_dir + '28*')
     # next 2 lines show you how to access a single DS18B20
-    device_folder = devices[0]
-    device_file = device_folder + '/w1_slave'
+    if devices:
+        device_folder = devices[0]
+        device_file = device_folder + '/w1_slave'
     return devices
  
 def read_ds18b20_raw(dev_file):
@@ -139,15 +145,22 @@ def read_ds18b20(dev_file):
         return (-100.0,-100.0)
 
 if READ_DS18B20:
-    dev_ds18b20 = ds18b20_start()
+    dev_ds18b20 = ds18b20_start()   # list of devices, can be empty
 
 def read_dht(dht_type=DHT_TYPE, dht_gpio=DHT_PIN):
     #22 is the sensor type, 5 is the GPIO pin number that DATA wire is connected to
-    humid, temp = Adafruit_DHT.read_retry(dht_type, dht_gpio)
-    if temp:
+    readOK = False
+    for i in range(DHT_RETRY_CNT):
+        humid, temp = Adafruit_DHT.read_retry(dht_type, dht_gpio)
+        if humid and humid <= 100.0 and humid >= 0.0:
+            readOK = True
+            break
+        # if bad reading, wait 2 seconds and try again
+        time.sleep(2)
+    if readOK:
         return 1.8*temp+32.0,humid
     else:
-        return None, None
+        return None,None
 
 # How to fetch the readings that we need for heater decision
 AMBIENT_T       = dict(file='geist', instrument='Geist WD100', value='temperature', name='ambient')
@@ -190,8 +203,8 @@ def get_value(val, type='float'):
                 if val['value'] in fld:
                     value = (fld.split('=')[1]).rstrip()
                     break
-    if value=='n/a':
-        value = None
+    if value is None or value=='n/a':
+        value = -999
     else:
         if type=='float':
             value = float(value)

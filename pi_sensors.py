@@ -34,24 +34,6 @@ def c_to_f(tempC):
 
 def ac_relay_pb_callback(channel):
     print("pushbutton {}".format(channel))
-
-def ds18b20_start():
-    '''
-    Setup for reading DS18B20.
-    It is a system device on r-pi and leaves data in /sys/bus...
-    There can be multiple - each has its own directory.
-
-    :return: filenames for device data
-    '''
-    os.system('modprobe w1-gpio')
-    os.system('modprobe w1-therm')
- 
-    base_dir = '/sys/bus/w1/devices/'
-    devices = glob.glob(base_dir + '28*')
-    # next 2 lines show you how to access a single DS18B20
-    device_folder = devices[0]
-    device_file = device_folder + '/w1_slave'
-    return devices
  
 def read_temp_raw(dev_file):
     '''
@@ -80,14 +62,6 @@ def read_temp(dev_file):
         return temp_c, temp_f
     else:
         return (-100.0,-100.0)
-
-if hw.READ_DS18B20:
-    dev_ds18b20 = ds18b20_start()
-
-def read_dht(dht_type=hw.DHT_TYPE, dht_gpio=hw.DHT_PIN):
-    #22 is the sensor type, 5 is the GPIO pin number that DATA wire is connected to
-    humid, temp = Adafruit_DHT.read_retry(dht_type, dht_gpio)
-    return 1.8*temp+32.0,humid
     
 def calc_dewpoint(humidity, temperatureC):
     '''
@@ -122,12 +96,12 @@ def calc_status():
         amb_t           = (hw.get_value(hw.AMBIENT_T) + hw.get_value(hw.AMBIENT_T_1)) / 2.0
         amb_hum         = (hw.get_value(hw.AMBIENT_HUM) + hw.get_value(hw.AMBIENT_HUM_1)) / 2.0
         amb_dew         = (hw.get_value(hw.AMBIENT_DEW) + hw.get_value(hw.AMBIENT_DEW_1)) / 2.0
-        if mirror_cell_hum and mirror_cell_t:
+        if mirror_cell_hum != -999 and mirror_cell_t != -999:
             mirror_cell_dew = c_to_f(calc_dewpoint(mirror_cell_hum, f_to_c(mirror_cell_t)))
         else:
-            mirror_cell_dew = None
+            mirror_cell_dew = -999
         # sensors return F, not C. Algorithm was specified in C, so multiply by 1.8
-        if mirror_cell_dew and mirror_t and amb_hum:
+        if mirror_cell_dew != -999 and mirror_t != -999 and amb_hum:
             if (mirror_t - mirror_cell_dew) < (2.0 * 1.8) or amb_hum >= 80:
                 status = 'red'
             elif (mirror_t - mirror_cell_dew) < (5.0 * 1.8) or amb_hum >= 65:
@@ -148,25 +122,34 @@ if __name__ == "__main__":
     #led_test()
     hw.relay_setup()
     #relay_test()
+    hw.dht_pin_setup()
     # INFO : 2020-08-03 00:10:02,I:Geist WD100,etc.
     measure_time = time.strftime('%Y-%m-%d %H:%M:%S')
+
+    if hw.READ_DS18B20:
+        dev_ds18b20 = hw.ds18b20_start()   # list of devices, can be empty
+        if not dev_ds18b20:
+            data_logger.error(measure_time + ': DS18B20 device not found')
+
     log_str = '%s' %(measure_time)
     instruments = {}
 
     # DHT22 temp/humidity - only one
     temp,humid = hw.read_dht()
-    if temp and humid:
+    if humid:   # bad read returns humid=None
         instruments['dht22'] = {'temperature':'{:.1f}'.format(temp), 'humidity':'{:.1f}'.format(humid)}
     else:
         instruments['dht22'] = {'temperature':'n/a', 'humidity':'n/a'}
+        data_logger.error(measure_time + ': DHT22: no readings')
 
     # DS18B20 temp sensors - can have multiple
     if hw.READ_DS18B20:
         idev = 0
-        for dev in dev_ds18b20:
-            ds_temp_c,ds_temp_f = hw.read_ds18b20(dev+'/w1_slave')
-            instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_f)}
-            idev += 1
+        if dev_ds18b20:
+            for dev in dev_ds18b20:
+                ds_temp_c,ds_temp_f = hw.read_ds18b20(dev+'/w1_slave')
+                instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_f)}
+                idev += 1
 
     if humid and temp:
         mirror_cell_dew = c_to_f(calc_dewpoint(humid,f_to_c(temp)))
