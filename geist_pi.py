@@ -27,6 +27,12 @@ from email.message import EmailMessage
 
 TEST_EMAIL = False
 
+def f_to_c(tempF):
+    return (tempF - 32.0) / 1.8
+    
+def c_to_f(tempC):
+    return tempC * 1.8 + 32.0
+
 if os.path.isfile('pi_settings.py'):
     import pi_settings as gset
     dewpoint_alarm = gset.dewpoint_alarm
@@ -194,7 +200,11 @@ def log_data(geist_state, geist_data):
         measures[instr] = {}
         data = instruments[instr]
         for key in data:
-            log_str += ',V:%s,%s' %(data[key][0],data[key][1])
+            dtype = data[key][0]
+            dval  = data[key][1]
+            if dtype == 'temperature' or dtype == 'dewpoint':
+                dval = '%.1f' % (f_to_c(float(dval)))
+            log_str += ',V:%s,%s' %(dtype,dval)
             measures[instr][data[key][0]] = data[key][1]
     data_logger.info(log_str)
 
@@ -206,7 +216,11 @@ def log_data(geist_state, geist_data):
         fp.write(log_str)
         data = instruments[instr]
         for key in data:
-            dat_str =',%s=%s' %(data[key][0],data[key][1])
+            dtype = data[key][0]
+            dval  = data[key][1]
+            if dtype == 'temperature' or dtype == 'dewpoint':
+                dval = '%.1f' % (f_to_c(float(dval)))
+            dat_str =',%s=%s' %(dtype,dval)
             fp.write(dat_str)
         fp.write('\n')
     fp.close()
