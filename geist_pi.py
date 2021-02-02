@@ -45,8 +45,8 @@ else:
     dewpoint_alarm = 4.0    # diff between ambient dewpoint and mirror temperature in F
     dewpoint_temp = ('Geist WD100','dewpoint')
     mirror_temp = ('GTHD','temperature')
-    geist_addr = 'http://198.189.159.214'   # address of geist Watchdog
-    geist_port = 89     # use None for default port value
+    geist_addr = 'http://192.168.99.110'   # address of geist Watchdog
+    geist_port = 80     # use None for default port value
     email_acct = 'developer@glenn-nelson.us'
     email_acct_pass = 'xxxxx'
     email_from = 'developer@glenn-nelson.us'

@@ -61,7 +61,8 @@ def ac_relay_pb_callback(channel):
         #GPIO.output(RED_LED, GPIO.LOW)
         on_timer = 0
         on_manual = True
-        os.remove(RELAY_ON_FILE)
+        if os.path.exists(RELAY_ON_FILE):
+            os.remove(RELAY_ON_FILE)
         os.system('touch '+RELAY_OFF_FILE)   # use file timestamp for the relay ON timer
 
 def relay_setup(relay=AC_RELAY, ron=AC_PB_ON, roff=AC_PB_OFF):
@@ -115,7 +116,8 @@ def relay_control_with_timeout():
         if (now - st_relay_off.st_mtime) / 60 < AUTO_OFF_TIME:
             # heater must stay off
             relay_on = False
-            os.remove(RELAY_ON_FILE)
+            if os.path.exists(RELAY_ON_FILE):
+                os.remove(RELAY_ON_FILE)
         else:
             # greater than AUTO_OFF_TIME, so allow relay to turn on
             os.remove(RELAY_OFF_FILE)
@@ -169,13 +171,22 @@ if __name__ == "__main__":
             else:
                 # heater must stay off
                 relay_on = False
-                os.remove(RELAY_ON_FILE)
+                if os.path.exists(RELAY_ON_FILE):
+                    os.remove(RELAY_ON_FILE)
+        # Strange, but even if both RELAY state files are missing, it is possible that
+        # on_manual==True (global variable). This condition can happen if console operator
+        # asks to cancel manual override (resume automatic operation).
+        if not os.path.exists(RELAY_ON_FILE) and not os.path.exists(RELAY_OFF_FILE):
+            on_manual = False
+
         if on_manual:   # don't change relay if under automatic control
             if relay_on:
                 GPIO.output(AC_RELAY, GPIO.HIGH)
                 GPIO.output(RED_LED, GPIO.HIGH)
+                logger.info('on_manual: turn relay ON')
             else:
                 GPIO.output(AC_RELAY, GPIO.LOW)
                 GPIO.output(RED_LED, GPIO.LOW)
+                logger.info('on_manual: turn relay OFF')
         time.sleep(30)
 
