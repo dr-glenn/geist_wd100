@@ -18,9 +18,9 @@ AC_PB_OFF = 26
 RED_LED = 25
 YELLOW_LED = 24
 GREEN_LED = 23
-DHT_TYPE=22
+DHT_TYPE=11
 #DHT_PIN=5  # this is the typical default
-DHT_PIN=12
+DHT_PIN=5
 DHT_RETRY_CNT=5
 READ_DS18B20 = True
 AUTO_ON_TIME = 30   # minutes: turn off after this time
@@ -180,6 +180,7 @@ def read_dht(dht_type=DHT_TYPE, dht_gpio=DHT_PIN):
     With a wire longer than a meter we sometimes get very strange values or none at all.
     """
     readOK = False
+    time.sleep(2)
     for i in range(DHT_RETRY_CNT):
         humid, temp_c = Adafruit_DHT.read(dht_type, dht_gpio)
         # yes we can allow humidity > 100!!!
@@ -279,9 +280,15 @@ def display_status():
         pass
 # ============================================================
 # ===== Run this script from command line to test it =====
-# ===== If imported to other programs, this code will not run
+# ===== If imported to other programs, this code is not run
 
 if __name__ == '__main__':
+    import logging
+    import my_logger
+    dataFormat = logging.Formatter('%(levelname)s : %(message)s')
+    data_logger = my_logger.setup_logger('data','pi_hw_test.log', formatter=dataFormat)
+    data_logger.setLevel(logging.DEBUG)
+
     for v in (AMBIENT_T,AMBIENT_DEW,AMBIENT_HUM,AMBIENT_T_1,AMBIENT_DEW_1,AMBIENT_HUM_1,MIRROR_T,MIRROR_CELL_T,MIRROR_CELL_HUM):
         val = get_value(v)
-        print('name={}: instr={}, measure={}, value={}'.format(v['name'],v['instrument'],v['value'],val))
+        data_logger.debug('name={}: instr={}, measure={}, value={}'.format(v['name'],v['instrument'],v['value'],val))
