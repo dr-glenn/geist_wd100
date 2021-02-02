@@ -7,6 +7,7 @@ Also may read DS18B20 temp sensor.
 '''
 
 import os
+import os.path
 import glob
 import time
 import math
@@ -16,12 +17,16 @@ import RPi.GPIO as GPIO
 
 import logging
 import my_logger
-#logger = my_logger.setup_logger(__name__,'geist_prog.log')
 dataFormat = logging.Formatter('%(levelname)s : %(message)s')
 data_logger = my_logger.setup_logger('data','pi_data.log', formatter=dataFormat)
+data_logger.setLevel(logging.DEBUG)
 
 #from pi_hw import AC_RELAY,AC_PB_ON,AC_PB_OFF,RED_LED,YELLOW_LED,GREEN_LED,DHT_TYPE,DHT_PIN,READ_DS18B20
 import pi_hw as hw
+
+hw.set_logger(data_logger)
+
+STATUS_COLOR = {0:'grey', 1:'green', 2:'yellow', 3:'red'}
 
 # Use BCM pin mappings for Raspberry - this is most common
 GPIO.setmode(GPIO.BCM)
@@ -34,34 +39,6 @@ def c_to_f(tempC):
 
 def ac_relay_pb_callback(channel):
     print("pushbutton {}".format(channel))
- 
-def read_temp_raw(dev_file):
-    '''
-    Fetch recent data for DS18B20
-    '''
-    f = open(dev_file, 'r')
-    lines = f.readlines()
-    f.close()
-    return lines
- 
-def read_temp(dev_file):
-    '''
-    Read and parse data for DS18B20.
-
-    :return: tuple of (temp C, temp F)
-    '''
-    lines = read_temp_raw(dev_file)
-    while lines[0].strip()[-3:] != 'YES':
-        time.sleep(0.2)
-        lines = read_temp_raw(dev_file)
-    equals_pos = lines[1].find('t=')
-    if equals_pos != -1:
-        temp_string = lines[1][equals_pos+2:]
-        temp_c = float(temp_string) / 1000.0
-        temp_f = temp_c * 9.0 / 5.0 + 32.0
-        return temp_c, temp_f
-    else:
-        return (-100.0,-100.0)
     
 def calc_dewpoint(humidity, temperatureC):
     '''
@@ -73,10 +50,45 @@ def calc_dewpoint(humidity, temperatureC):
     dewptC = (237.3 * H) / (1.0 - H)
     return dewptC
 
-def calc_status():
+def calc_status(mirror_cell_t, mirror_t, mirror_cell_hum):
     '''
     green/yellow/red status depends on environmental conditions.
+    This function also calculates status based on Geist sensors.
+    :param mirror_cell_t: temperature measured in the mirrir cell
+    :param mirror_t: temperature measured on the mirror
+    :mirror_cell_hum: humidity in the mirror cell
+    :return: list of status values for each of Geist, GTHD, Pi sensors
     '''
+    def calc_color(temp, dewtemp, humid):
+        """
+        Returns integer representing condition severity.
+        0: Grey: incorrect or missing sensor values
+        1: Green: environmental conditions OK.
+        2: Yellow: environmental conditions approaching high humidity or dewpoint worries.
+        3: Red: environmental conditions require turning on mirror heater.
+        If any of the values are missing, then return color grey.
+        :param temp: sensor temperature
+        :param dewtemp: dewpoint temperature
+        :param humid: sensor humidity
+        :return: integer from set of 0,1,2,3
+        NOTE: the input values should have already been scrubbed for out of range values.
+        """
+        if temp == hw.MISSING_VAL or dewtemp == hw.MISSING_VAL or humid == hw.MISSING_VAL:
+            status = 'grey'
+            istatus = 0
+        else:
+            if (temp - dewtemp) < 2.0 or humid >= 80:
+                status = 'red'
+                istatus = 3
+            elif (temp - dewtemp) < 5.0 or humid >= 65:
+                status = 'yellow'
+                istatus = 2
+            else:
+                status = 'green'
+                istatus = 1
+        # NOTE: 'status' variable is not used
+        return istatus
+
     if hw.FAKE_STATUS:
         dt_now = dt.datetime.now()
         # change status every 5 minutes for demonsration
@@ -88,30 +100,82 @@ def calc_status():
         else:
             status = 'green'
     else:
-        # TODO: should not use get_value for Pi sensors, because those values will be 5 minutes old.
-        mirror_cell_t   = hw.get_value(hw.MIRROR_CELL_T)
-        mirror_cell_hum = hw.get_value(hw.MIRROR_CELL_HUM)
-        mirror_t        = hw.get_value(hw.MIRROR_T)  # does not have hum sensor
-        # TODO: averaging is not best, esp. what if GTHD sensor is offline!
-        amb_t           = (hw.get_value(hw.AMBIENT_T) + hw.get_value(hw.AMBIENT_T_1)) / 2.0
-        amb_hum         = (hw.get_value(hw.AMBIENT_HUM) + hw.get_value(hw.AMBIENT_HUM_1)) / 2.0
-        amb_dew         = (hw.get_value(hw.AMBIENT_DEW) + hw.get_value(hw.AMBIENT_DEW_1)) / 2.0
-        if mirror_cell_hum != -999 and mirror_cell_t != -999:
-            mirror_cell_dew = c_to_f(calc_dewpoint(mirror_cell_hum, f_to_c(mirror_cell_t)))
+        stat_dict = {}  # status code (0,1,2,3) from all sensor arrays near telescope
+        # Next 3 are pi sensors, get live values
+        """
+        vals = hw.get_all_sensors()
+        mirror_cell_t = vals['PI_DHT_T']
+        mirror_cell_hum = vals['PI_DHT_H']
+        mirror_t = vals['PI_DS18_T']
+        """
+        if mirror_cell_hum != hw.MISSING_VAL and mirror_cell_t != hw.MISSING_VAL:
+            mirror_cell_dew = calc_dewpoint(mirror_cell_hum, mirror_cell_t)
         else:
-            mirror_cell_dew = -999
-        # sensors return F, not C. Algorithm was specified in C, so multiply by 1.8
-        if mirror_cell_dew != -999 and mirror_t != -999 and amb_hum:
-            if (mirror_t - mirror_cell_dew) < (2.0 * 1.8) or amb_hum >= 80:
-                status = 'red'
-            elif (mirror_t - mirror_cell_dew) < (5.0 * 1.8) or amb_hum >= 65:
-                status = 'yellow'
-            else:
-                status = 'green'
+            mirror_cell_dew = hw.MISSING_VAL
+        istat = calc_color(mirror_t, mirror_cell_dew, mirror_cell_hum)
+        stat_dict['pi'] = istat # Pi sensors status (mirror and mirror cell)
+        stat = STATUS_COLOR[istat]
+        data_logger.debug('pi status: %s, vals: %.1f, %.1f, %.1f' %(stat, mirror_t, mirror_cell_dew, mirror_cell_hum))
+        # The next measurements are from Geist and we fetch from a file of recently stored values
+        amb_t   = hw.get_value(hw.AMBIENT_T)
+        amb_hum = hw.get_value(hw.AMBIENT_HUM)
+        amb_dew = hw.get_value(hw.AMBIENT_DEW)
+        istat = calc_color(amb_t, amb_dew, amb_hum)
+        # TODO: emergency shutoff, 27 Jan 2021
+        stat_dict['geist_wd100'] = istat # Geist WD100 chassis
+        stat = STATUS_COLOR[istat]
+        data_logger.debug('G100 status: %s' %(stat))
+
+        amb_t   = hw.get_value(hw.AMBIENT_T_1)
+        amb_hum = hw.get_value(hw.AMBIENT_HUM_1)
+        amb_dew = hw.get_value(hw.AMBIENT_DEW_1)
+        istat = calc_color(amb_t, amb_dew, amb_hum)
+        # TODO: emergency shutoff, 27 Jan 2021
+        stat_dict['geist_gthd'] = istat # Geist GTHD external sensor
+        stat = STATUS_COLOR[istat]
+        data_logger.debug('GTHD status: %s' %(stat))
+
+        # determine severity status for turning heater relay on or off
+        if stat_dict['pi'] != 0:
+            # Pi sensors have priority over Geist sensors
+            status = stat_dict['pi']
         else:
-            # TODO: should be another color to signify missing sensors.
-            status = 'grey'
+            # Pi sensors are no good, so use Geist sensors
+            status = max(stat_dict['geist_wd100'], stat_dict['geist_gthd'])
     return status
+
+def relay_set_with_timer(on_state):
+    '''
+    Force the heater relay on for minutes.
+    :param minutes: if == 0, then turn on permanently
+    '''
+    relay_off_file = '/home/pi/relay_off.txt'   # use to enforce off time for heater
+    relay_on_file = '/home/pi/relay_on.txt'
+    
+    # if on_state==True, touch relay_on_file.
+    # pi_ints program will decide if it can be turned on
+    # if on_state==False, touch relay_off_file.
+    # pi_ints program will decide if it can be turned off
+    if on_state:
+        if os.path.exists(relay_on_file):
+            st_relay_on = os.stat(relay_on_file)
+            now = time.time()
+            if (now - st_relay_on.st_mtime) / 60 < 30:
+                pass
+        else:
+            os.system('touch '+relay_on_file)
+    else:
+        # always allowed to ask to turn off heater
+        os.system('touch '+relay_off_file)
+
+# Not currently implemented (1 Feb 2021)
+def relay_off_30(minutes=30):
+    '''
+    Force the heater relay off for minutes.
+    :param minutes: if == 0, then turn off permanently
+    '''
+    pass
+    
 
 if __name__ == "__main__":
     '''
@@ -125,7 +189,7 @@ if __name__ == "__main__":
     hw.dht_pin_setup()
     # INFO : 2020-08-03 00:10:02,I:Geist WD100,etc.
     measure_time = time.strftime('%Y-%m-%d %H:%M:%S')
-
+    
     if hw.READ_DS18B20:
         dev_ds18b20 = hw.ds18b20_start()   # list of devices, can be empty
         if not dev_ds18b20:
@@ -134,38 +198,52 @@ if __name__ == "__main__":
     log_str = '%s' %(measure_time)
     instruments = {}
 
-    # DHT22 temp/humidity - only one
-    temp,humid = hw.read_dht()
-    if humid:   # bad read returns humid=None
-        instruments['dht22'] = {'temperature':'{:.1f}'.format(temp), 'humidity':'{:.1f}'.format(humid)}
-    else:
-        instruments['dht22'] = {'temperature':'n/a', 'humidity':'n/a'}
-        data_logger.error(measure_time + ': DHT22: no readings')
-
     # DS18B20 temp sensors - can have multiple
+    ds_temp = []
     if hw.READ_DS18B20:
         idev = 0
         if dev_ds18b20:
             for dev in dev_ds18b20:
-                ds_temp_c,ds_temp_f = hw.read_ds18b20(dev+'/w1_slave')
-                instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_f)}
+                ds_temp_c = hw.read_ds18b20(dev+'/w1_slave')
+                ds_temp.append(ds_temp_c)
+                instruments['ds18b20-%d' %(idev)] = {'temperature':'{:.1f}'.format(ds_temp_c)}
                 idev += 1
+        else:   # there is no ds18b20, but we want to keep a placeholder
+            ds_temp.append(hw.MISSING_VAL)
+            instruments['ds18b20-%d' %(idev)] = {'temperature':'n/a'}
+            
 
-    if humid and temp:
-        mirror_cell_dew = c_to_f(calc_dewpoint(humid,f_to_c(temp)))
+    # DHT22 temp/humidity - only one
+    tempc,humid = hw.read_dht()
+    if humid != hw.MISSING_VAL and tempc != hw.MISSING_VAL:   # bad read returns humid=None
+        instruments['dht22'] = {'temperature':'{:.1f}'.format(tempc), 'humidity':'{:.1f}'.format(humid)}
+        mirror_cell_dew = calc_dewpoint(humid,tempc)
         instruments['dew_calc'] = {'mirror_dewpt':'{:.1f}'.format(mirror_cell_dew)}
     else:
+        humid = hw.MISSING_VAL
+        tempc = hw.MISSING_VAL
+        instruments['dht22'] = {'temperature':'n/a', 'humidity':'n/a'}
+        mirror_cell_dew = hw.MISSING_VAL
         instruments['dew_calc'] = {'mirror_dewpt':'n/a'}
+        data_logger.error(measure_time + ': DHT22: no readings')
     
-    # environment calc_status returns one of: red/yellow/green
-    stat = calc_status()
+    # environment calc_status returns one of: red/yellow/green/grey as integer
+    # The return value should be the "maximum" green/yellow/red of all sensor systems,
+    # that is, the Pi sensors near the mirror and the Geist sensors that measure "ambient"
+    # conditions inside the dome.
+    # TODO: (27 January 2021). There have been temporary changes to the algorithm in calc_status
+    # to ignore the Geist readings. So istat is only determined from the Pi sensors.
+    istat = calc_status(tempc, ds_temp[0], humid)
+    stat = STATUS_COLOR[istat]
     # set the heater relay and the status LED
     #if not hw.FAKE_STATUS:
     if hw.RELAY_EN:
         if stat == 'red':
             hw.relay_set(GPIO.HIGH)
+            #relay_set_with_timer(True)
         else:
             hw.relay_set(GPIO.LOW)
+            #relay_set_with_timer(False)
     hw.led_set(stat, GPIO.HIGH) # by default other LEDs will be turned off
     instruments['environment'] = {'status': stat}
 

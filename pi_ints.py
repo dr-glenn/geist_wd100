@@ -11,6 +11,7 @@ When program starts, the red LED on the Pi will flash and the relay will be turn
 '''
 
 import os
+import os.path
 import time
 import RPi.GPIO as GPIO
 
@@ -32,14 +33,14 @@ RED_LED = 25
 YELLOW_LED = 24
 GREEN_LED = 23
 AUTO_ON_TIME = 30   # minutes: turn off after this time
+AUTO_OFF_TIME = 15  # minutes required to stay off
+
+# Two files used for operator manual control of heater
+RELAY_ON_FILE  = '/home/pi/relay_on.txt'
+RELAY_OFF_FILE = '/home/pi/relay_off.txt'
 
 # Use BCM pin mappings for Raspberry - this is most common
 GPIO.setmode(GPIO.BCM)
-
-def touch(path):
-    ''' mimic the UNIX touch command'''
-    with open(path, 'a'):
-        os.utime(path, None)
 
 def ac_relay_pb_callback(channel):
     '''
@@ -50,16 +51,18 @@ def ac_relay_pb_callback(channel):
     #print("pushbutton {}".format(channel))
     logger.info("heater relay manual: %s" %("ON" if channel==AC_PB_ON else "OFF"))
     if channel==AC_PB_ON:
-        GPIO.output(AC_RELAY, GPIO.HIGH)
-        GPIO.output(RED_LED, GPIO.HIGH)
+        #GPIO.output(AC_RELAY, GPIO.HIGH)
+        #GPIO.output(RED_LED, GPIO.HIGH)
         on_timer = AUTO_ON_TIME
         on_manual = True
-        touch('/home/pi/Projects/geist_wd100/relay_on.txt')   # use file timestamp for the relay ON timer
+        os.system('touch '+RELAY_ON_FILE)   # use file timestamp for the relay ON timer
     else:
-        GPIO.output(AC_RELAY, GPIO.LOW)
-        GPIO.output(RED_LED, GPIO.LOW)
+        #GPIO.output(AC_RELAY, GPIO.LOW)
+        #GPIO.output(RED_LED, GPIO.LOW)
         on_timer = 0
-        on_manual = False
+        on_manual = True
+        os.remove(RELAY_ON_FILE)
+        os.system('touch '+RELAY_OFF_FILE)   # use file timestamp for the relay ON timer
 
 def relay_setup(relay=AC_RELAY, ron=AC_PB_ON, roff=AC_PB_OFF):
     GPIO.setup(relay, GPIO.OUT)
@@ -89,6 +92,40 @@ def led_test(leds=(GREEN_LED,YELLOW_LED,RED_LED)):
         GPIO.output(led, GPIO.LOW)
         time.sleep(1)
 
+# This function is only used if we want to enforce limits to time on and time off for the heater.
+# NOT currently used (1 Feb 2021), and not currently correct!
+def relay_control_with_timeout():
+    # Also need to be able to manually control relay from desktop console.
+    relay_on = False
+    if os.path.exists(relay_on_file):
+        st_relay_on = os.stat(relay_on_file)
+        now = time.time()
+        if (now - st_relay_on.st_mtime) / 60 > AUTO_ON_TIME:
+            # relay is ON, we want to turn off and set OFF timer so that relay cannot
+            # be turned on too soon
+            relay_on = False
+            os.remove(relay_on_file)
+            os.system('touch '+relay_off_file)
+        else:
+            # less than AUTO_ON_TIME, so makes sure relay is ON
+            relay_on = True
+    if os.path.exists(relay_off_file):
+        st_relay_off = os.stat(relay_off_file)
+        now = time.time()
+        if (now - st_relay_off.st_mtime) / 60 < AUTO_OFF_TIME:
+            # heater must stay off
+            relay_on = False
+            os.remove(relay_on_file)
+        else:
+            # greater than AUTO_OFF_TIME, so allow relay to turn on
+            os.remove(relay_off_file)
+    if relay_on:
+        GPIO.output(AC_RELAY, GPIO.HIGH)
+        GPIO.output(RED_LED, GPIO.HIGH)
+    else:
+        GPIO.output(AC_RELAY, GPIO.LOW)
+        GPIO.output(RED_LED, GPIO.LOW)
+
 if __name__ == "__main__":
     global on_timer, on_manual
     logger.info('START pi_ints')
@@ -104,21 +141,41 @@ if __name__ == "__main__":
     while True:
         # We have to run infinite loop just to keep this program running,
         # but nothing is actually done here, it's all handled by interrupts.
-        if on_manual:
-            # check timeout to see if turning off is allowed
-            st = os.stat('/home/pi/Projects/geist_wd100/relay_on.txt')
+        
+        # on_manual is True if a hardware pushbutton was activated
+        relay_on = False
+        if os.path.exists(RELAY_ON_FILE):
+            on_manual = True
+            # it was turned on manually, either pushbutton or console command
+            st_relay_on = os.stat(RELAY_ON_FILE)
             now = time.time()
-            if (now - st.st_mtime) / 60 > AUTO_ON_TIME:
-                GPIO.output(AC_RELAY, GPIO.LOW)
-                GPIO.output(RED_LED, GPIO.LOW)
-            '''
-            # old code: was using a timer, but now using timestamp of a file
-            if on_timer > 0:
-                on_timer -= 1
-            else:
+            if (now - st_relay_on.st_mtime) / 60 > AUTO_ON_TIME:
+                # relay is ON, we want to turn off and set OFF timer so that relay cannot
+                # be turned on too soon
+                relay_on = False
+                os.remove(RELAY_ON_FILE)
                 on_manual = False
+            else:
+                # less than AUTO_ON_TIME, so makes sure relay is ON
+                relay_on = True
+        if os.path.exists(RELAY_OFF_FILE):
+            on_manual = True    # manually turned off, same flag for ON state
+            st_relay_off = os.stat(RELAY_OFF_FILE)
+            now = time.time()
+            if (now - st_relay_off.st_mtime) / 60 > AUTO_OFF_TIME:
+                # greater than AUTO_OFF_TIME, so allow relay to turn on
+                os.remove(RELAY_OFF_FILE)
+                on_manual = False
+            else:
+                # heater must stay off
+                relay_on = False
+                os.remove(RELAY_ON_FILE)
+        if on_manual:   # don't change relay if under automatic control
+            if relay_on:
+                GPIO.output(AC_RELAY, GPIO.HIGH)
+                GPIO.output(RED_LED, GPIO.HIGH)
+            else:
                 GPIO.output(AC_RELAY, GPIO.LOW)
                 GPIO.output(RED_LED, GPIO.LOW)
-            '''
-        time.sleep(60)
+        time.sleep(30)
 
