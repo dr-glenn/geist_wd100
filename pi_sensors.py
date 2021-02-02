@@ -149,24 +149,22 @@ def relay_set_with_timer(on_state):
     Force the heater relay on for minutes.
     :param minutes: if == 0, then turn on permanently
     '''
-    relay_off_file = '/home/pi/relay_off.txt'   # use to enforce off time for heater
-    relay_on_file = '/home/pi/relay_on.txt'
     
     # if on_state==True, touch relay_on_file.
     # pi_ints program will decide if it can be turned on
     # if on_state==False, touch relay_off_file.
     # pi_ints program will decide if it can be turned off
     if on_state:
-        if os.path.exists(relay_on_file):
-            st_relay_on = os.stat(relay_on_file)
+        if os.path.exists(hw.RELAY_ON_FILE):
+            st_relay_on = os.stat(hw.RELAY_ON_FILE)
             now = time.time()
             if (now - st_relay_on.st_mtime) / 60 < 30:
                 pass
         else:
-            os.system('touch '+relay_on_file)
+            os.system('touch '+hw.RELAY_ON_FILE)
     else:
         # always allowed to ask to turn off heater
-        os.system('touch '+relay_off_file)
+        os.system('touch '+hw.RELAY_OFF_FILE)
 
 # Not currently implemented (1 Feb 2021)
 def relay_off_30(minutes=30):

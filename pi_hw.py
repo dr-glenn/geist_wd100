@@ -14,6 +14,8 @@ def set_logger(theLogger):
     global logger
     logger = theLogger
 
+OOS_DEPLOY=True
+
 BAD_VALUE_FILTER = True # if sensor has a crazy value, return MISSING_VAL
 VALID_TEMP_C = (-18.0, 50.0)
 VALID_HUMIDITY = (0.0, 150.0)   # Bruce Weaver says allow humidity reading up to 150!
@@ -26,9 +28,13 @@ AC_PB_OFF = 26
 RED_LED = 25
 YELLOW_LED = 24
 GREEN_LED = 23
-DHT_TYPE=11
-#DHT_PIN=5  # this is the typical default
-DHT_PIN=5
+if OOS_DEPLOY:
+    DHT_TYPE=22
+    DHT_PIN=12  # PIN5 got blown up
+else:
+    # for the DEV-TEST system
+    DHT_TYPE=11
+    DHT_PIN=5  # this is the typical default
 DHT_RETRY_CNT=5
 READ_DS18B20 = True
 AUTO_ON_TIME = 30   # minutes: turn off after this time
