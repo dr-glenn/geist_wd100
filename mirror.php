@@ -92,6 +92,26 @@ body {
 $mirror_stat = 'green';
 $status_class = '';
 // read files 'geist_newest.dat' or 'pi_newest.dat' for environment data
+
+// instrument log files written by Python have device names, which are hard to comprehend.
+// Get an alias until we improve the Python code.
+function get_friendly_instr_name($instr) {
+    $nice_name['ds18b20-0']   = 'mirror';
+    $nice_name['dht22']       = 'mirror cell';
+    $nice_name['dew_cell']    = 'mirror cell';
+    $nice_name['dew_mirror']  = 'mirror';
+    $nice_name['relay']       = 'heater';
+    $nice_name['Geist WD100'] = 'Geist chassis';
+    $nice_name['GTHD']        = 'Geist external';
+
+    if (array_key_exists($instr, $nice_name)) {
+        return $nice_name[$instr];
+    }
+    else {
+        return $instr;
+    }
+}
+
 function gen_table_rows($fname) {
     global $mirror_stat;
     $fp = fopen($fname, "r");
@@ -100,7 +120,8 @@ function gen_table_rows($fname) {
         $flds = explode(',', $line);
         $datetime = $flds[0];
         $instr = $flds[1];
-        $tab_rows .= "<tr><td>".$datetime."</td><td>".$instr."</td><td>";
+        $nice_name = get_friendly_instr_name($instr);
+        $tab_rows .= "<tr><td>".$datetime."</td><td>".$nice_name."</td><td>";
         $ifld = 2;
         while ($ifld <= count($flds)-1) {
             // remove EOL
@@ -168,7 +189,7 @@ printf("\$hour=%d;\$minute=%d</script>",$hour, $minute);
 <!-- display table of Geist WD100 values -->
 <div style="position:relative; margin-top:120px; padding-top:1em;">
 <table>
-<tr><th>Time</th><th>Instrument</th><th>Values</th></tr>
+<tr><th>Time</th><th>Location</th><th>Values</th></tr>
 <?php
 function write_table($fname) {
     $fp = fopen($fname, "r");
