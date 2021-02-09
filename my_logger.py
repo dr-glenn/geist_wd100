@@ -40,7 +40,7 @@ def setup_logger(name, log_file, formatter=defFormatter, level=logging.INFO):
     logger.addHandler(handler)
     return logger
     """
-    handler = TimedRotatingFileHandler(log_file, when='d', interval=1, backupCount=14)
+    handler = TimedRotatingFileHandler(log_file, when='midnight', interval=1, backupCount=14)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.setLevel(level)

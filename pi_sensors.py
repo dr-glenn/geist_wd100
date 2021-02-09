@@ -28,6 +28,12 @@ hw.set_logger(data_logger)
 
 STATUS_COLOR = {0:'grey', 1:'green', 2:'yellow', 3:'red'}
 
+# Values for status calculations
+RED_DEWPOINT = 3    # diff between measured temp and dewpoint to trigger RED
+RED_HUMIDITY = 80   # humidity level to trigger RED
+YELLOW_DEWPOINT = 5
+YELLOW_HUMIDITY = 65
+
 # Use BCM pin mappings for Raspberry - this is most common
 GPIO.setmode(GPIO.BCM)
 
@@ -77,10 +83,10 @@ def calc_status(mirror_cell_t, mirror_t, mirror_cell_hum):
             status = 'grey'
             istatus = 0
         else:
-            if (temp - dewtemp) < 2.0 or humid >= 80:
+            if (temp - dewtemp) < RED_DEWPOINT or humid >= RED_HUMIDITY:
                 status = 'red'
                 istatus = 3
-            elif (temp - dewtemp) < 5.0 or humid >= 65:
+            elif (temp - dewtemp) < YELLOW_DEWPOINT or humid >= YELLOW_HUMIDITY:
                 status = 'yellow'
                 istatus = 2
             else:
@@ -215,6 +221,7 @@ if __name__ == "__main__":
         else:   # there is no ds18b20, but we want to keep a placeholder
             ds_temp.append(hw.MISSING_VAL)
             instruments['ds18b20-%d' %(idev)] = {'temperature':'n/a'}
+            data_logger.error(measure_time + ': ds18b20: no readings')
             
 
     # DHT22 temp/humidity - only one sensor

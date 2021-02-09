@@ -121,7 +121,7 @@ function gen_table_rows($fname) {
         $datetime = $flds[0];
         $instr = $flds[1];
         $nice_name = get_friendly_instr_name($instr);
-        $tab_rows .= "<tr><td>".$datetime."</td><td>".$nice_name."</td><td>";
+        $tab_rows .= "<tr><td>".$datetime."</td><td>".$instr."</td><td>".$nice_name."</td><td>";
         $ifld = 2;
         while ($ifld <= count($flds)-1) {
             // remove EOL
@@ -189,7 +189,7 @@ printf("\$hour=%d;\$minute=%d</script>",$hour, $minute);
 <!-- display table of Geist WD100 values -->
 <div style="position:relative; margin-top:120px; padding-top:1em;">
 <table>
-<tr><th>Time</th><th>Location</th><th>Values</th></tr>
+<tr><th>Time</th><th>Instrument</th><th>Location</th><th>Values</th></tr>
 <?php
 function write_table($fname) {
     $fp = fopen($fname, "r");
