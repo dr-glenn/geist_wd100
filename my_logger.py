@@ -1,7 +1,7 @@
 # Logging the way we like it.
 
 import logging
-from logging.handlers import RotatingFileHandler
+from logging.handlers import RotatingFileHandler,TimedRotatingFileHandler
 
 """
 This module generates log files that have a max length of 50K bytes.
@@ -31,7 +31,16 @@ def setup_logger(name, log_file, formatter=defFormatter, level=logging.INFO):
     :param level: standard logger levels are CRITICAL, ERROR, WARNING, INFO, DEBUG.
     :return: the logger. Use it like this: logger.info('message')
     """
+    """
+    # not used now
     handler = RotatingFileHandler(log_file, maxBytes=50000, backupCount=3)
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    return logger
+    """
+    handler = TimedRotatingFileHandler(log_file, when='midnight', interval=1, backupCount=14)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.setLevel(level)
